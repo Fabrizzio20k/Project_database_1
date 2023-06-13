@@ -55,9 +55,9 @@ CREATE TABLE IF NOT EXISTS Cancion(
     artista_correo_electronico VARCHAR(50), --PRIMARY KEY --FOREIGN KEY
     fecha_lanzamiento DATE NOT NULL,
     genero_nombre VARCHAR(20) NOT NULL, --FOREIGN KEY
-    duracion_sec INTEGER NOT NULL,
-    duracion_minutos INTEGER NOT NULL,
-    duracion_horas INTEGER NOT NULL
+    duracion_s INTEGER NOT NULL,
+    duracion_m INTEGER NOT NULL,
+    duracion_h INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS Lista_reproduccion(
