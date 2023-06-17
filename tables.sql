@@ -268,14 +268,9 @@ SELECT COUNT(*) FROM Likes_artista; --YA ESTA - 7
 SELECT COUNT(*) FROM Album; --YA ESTA - 8
 SELECT COUNT(*) FROM Cancion; --YA ESTA - 9
 SELECT COUNT(*) FROM Lista_reproduccion; --YA ESTA - 10
-SELECT COUNT(*) FROM Lista;
+SELECT COUNT(*) FROM Lista; --YA ESTA - 11
 
-SELECT * FROM Lista;
-SELECT * FROM Lista_reproduccion WHERE nombre = 'jumps over the lazy ' AND usuario_correo_electronico = 'tulcvqtoz@tyhcsn.com';
-SELECT * FROM Cancion WHERE nombre = 'fox jumps o' AND album_nombre = 'the lazy dogThe quic';
 
-INSERT INTO Lista(lista_reproduccion_nombre, cancion_nombre) VALUES ('jumps over the lazy ', 'fox jumps o');
-DELETE FROM Lista;
 --Agregar datos al tipo_suscripcion
 INSERT INTO Tipo_suscripcion (tipo, precio) VALUES ('Gratis', 0);
 INSERT INTO Tipo_suscripcion (tipo, precio) VALUES ('Basic', 15.99);
@@ -322,4 +317,137 @@ DROP TABLE Likes_artista;
 DROP TABLE Oyentes_artista;
 DROP TABLE Usuario;
 DROP TABLE Artista;
+
+DELETE FROM Lista;
+DELETE FROM Lista_reproduccion;
+DELETE FROM Cancion;
+DELETE FROM Album;
+DELETE FROM Genero;
+DELETE FROM Suscripcion;
+DELETE FROM Tipo_suscripcion;
+DELETE FROM Likes_artista;
+DELETE FROM Oyentes_artista;
+DELETE FROM Usuario;
+DELETE FROM Artista;
 */
+
+--Pregunta 1
+SELECT genero_nombre, COUNT(genero_nombre) AS cantidad
+FROM
+    ((Usuario
+    JOIN Suscripcion ON Usuario.correo_electronico = Suscripcion.usuario_correo_electronico)
+    JOIN Lista ON Usuario.correo_electronico = Lista.usuario_correo_electronico
+    JOIN Lista_reproduccion ON Lista.lista_reproduccion_nombre = Lista_reproduccion.nombre AND Lista.usuario_correo_electronico = Lista_reproduccion.usuario_correo_electronico
+    JOIN Cancion ON Lista.cancion_nombre = Cancion.nombre AND Lista.album_nombre = Cancion.album_nombre AND Lista.artista_correo_electronico = Cancion.artista_correo_electronico)
+    JOIN Genero ON Cancion.genero_nombre = Genero.nombre
+WHERE
+    Suscripcion.tipo_suscripcion_tipo = 'Premium'
+    AND EXTRACT(YEAR FROM AGE(Suscripcion.fecha_fin,Suscripcion.fecha_inicio)) >= 1
+    AND EXTRACT(YEAR FROM AGE(CURRENT_DATE,Usuario.fecha_nacimiento)) >= 18
+GROUP BY genero_nombre
+ORDER BY cantidad DESC
+LIMIT 3;
+
+--Pregunta 2
+--Version sin optimizar
+EXPLAIN
+SELECT edad, conteo, tipo_suscripcion_tipo from Suscripcion JOIN
+(SELECT correo_electronico, EXTRACT(YEAR FROM AGE(CURRENT_DATE,Usuario.fecha_nacimiento)) AS edad, conteo FROM Usuario JOIN
+(SELECT usuario_correo_electronico, artista_correo_electronico, conteo
+FROM (
+    SELECT usuario_correo_electronico, artista_correo_electronico, COUNT(artista_correo_electronico) AS conteo
+    FROM (
+        SELECT usuario_correo_electronico, lista_reproduccion_nombre, cancion_nombre, Lista.artista_correo_electronico
+        FROM Lista
+        JOIN (
+            SELECT nombre, album_nombre, artista_correo_electronico
+            FROM Cancion
+            JOIN (
+                SELECT correo_electronico
+                FROM Artista
+                WHERE numero_oyentes = (SELECT MAX(numero_oyentes) FROM Artista)
+            ) AS artista ON Cancion.artista_correo_electronico = artista.correo_electronico
+        ) AS a ON Lista.artista_correo_electronico = a.artista_correo_electronico
+    ) AS b
+    GROUP BY usuario_correo_electronico, artista_correo_electronico
+) AS c
+WHERE conteo = (
+    SELECT MAX(conteo)
+    FROM (
+        SELECT usuario_correo_electronico, COUNT(artista_correo_electronico) AS conteo
+        FROM (
+            SELECT usuario_correo_electronico, lista_reproduccion_nombre, cancion_nombre, Lista.artista_correo_electronico
+            FROM Lista
+            JOIN (
+                SELECT nombre, album_nombre, artista_correo_electronico
+                FROM Cancion
+                JOIN (
+                    SELECT correo_electronico
+                    FROM Artista
+                    WHERE numero_oyentes = (SELECT MAX(numero_oyentes) FROM Artista)
+                ) AS artista ON Cancion.artista_correo_electronico = artista.correo_electronico
+            ) AS a ON Lista.artista_correo_electronico = a.artista_correo_electronico
+        ) AS b
+        GROUP BY usuario_correo_electronico, artista_correo_electronico
+    ) AS d
+)) AS e ON Usuario.correo_electronico = e.usuario_correo_electronico) AS f ON f.correo_electronico = Suscripcion.usuario_correo_electronico;
+
+--VERSION OPTIMIZADA
+WITH artistas_max_oyentes AS (
+    SELECT correo_electronico
+    FROM Artista
+    WHERE numero_oyentes = (SELECT MAX(numero_oyentes) FROM Artista)
+),
+canciones_artistas_max_oyentes AS (
+    SELECT nombre, album_nombre, artista_correo_electronico
+    FROM Cancion
+    JOIN artistas_max_oyentes ON Cancion.artista_correo_electronico = artistas_max_oyentes.correo_electronico
+),
+listas_artistas_max_oyentes AS (
+    SELECT usuario_correo_electronico, lista_reproduccion_nombre, cancion_nombre, Lista.artista_correo_electronico
+    FROM Lista
+    JOIN canciones_artistas_max_oyentes ON Lista.artista_correo_electronico = canciones_artistas_max_oyentes.artista_correo_electronico
+),
+conteo_listas_artistas_max_oyentes AS (
+    SELECT usuario_correo_electronico, artista_correo_electronico, COUNT(artista_correo_electronico) AS conteo
+    FROM listas_artistas_max_oyentes
+    GROUP BY usuario_correo_electronico, artista_correo_electronico
+),
+max_conteo_listas_artistas_max_oyentes AS (
+    SELECT MAX(conteo) AS max_conteo
+    FROM conteo_listas_artistas_max_oyentes
+),
+usuarios_conteo_maximo AS (
+    SELECT correo_electronico, EXTRACT(YEAR FROM AGE(CURRENT_DATE,Usuario.fecha_nacimiento)) AS edad, conteo
+    FROM Usuario
+    JOIN conteo_listas_artistas_max_oyentes ON Usuario.correo_electronico = conteo_listas_artistas_max_oyentes.usuario_correo_electronico
+    JOIN max_conteo_listas_artistas_max_oyentes ON conteo_listas_artistas_max_oyentes.conteo = max_conteo_listas_artistas_max_oyentes.max_conteo
+)
+SELECT edad, conteo, tipo_suscripcion_tipo
+FROM Suscripcion
+JOIN usuarios_conteo_maximo ON usuarios_conteo_maximo.correo_electronico = Suscripcion.usuario_correo_electronico;
+
+
+--Pregunta 3
+
+SELECT s.tipo_suscripcion_tipo, COUNT(*) AS cantidad
+FROM Suscripcion s
+JOIN (
+    SELECT DISTINCT l.usuario_correo_electronico
+    FROM Lista l
+    JOIN (
+        SELECT c.nombre, c.album_nombre, c.artista_correo_electronico
+        FROM Cancion c
+        JOIN Album a ON c.album_nombre = a.nombre AND c.artista_correo_electronico = a.artista_correo_electronico
+        JOIN Artista ar ON a.artista_correo_electronico = ar.correo_electronico
+        JOIN Lista l ON c.nombre = l.cancion_nombre AND c.album_nombre = l.album_nombre AND c.artista_correo_electronico = l.artista_correo_electronico
+        WHERE ar.is_verificado = TRUE AND c.fecha_lanzamiento < '2021-01-01'
+        GROUP BY c.nombre, c.album_nombre, c.artista_correo_electronico
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+    ) AS CancionMasAgregada ON l.cancion_nombre = CancionMasAgregada.nombre AND l.album_nombre = CancionMasAgregada.album_nombre AND l.artista_correo_electronico = CancionMasAgregada.artista_correo_electronico
+) AS UsuariosConCancion ON s.usuario_correo_electronico = UsuariosConCancion.usuario_correo_electronico
+GROUP BY s.tipo_suscripcion_tipo
+ORDER BY cantidad DESC
+LIMIT 1;
+
