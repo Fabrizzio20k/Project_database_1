@@ -220,13 +220,13 @@ CREATE OR REPLACE FUNCTION update_duration_lista_reproduccion() RETURNS TRIGGER 
         IF (TG_OP = 'INSERT') THEN
             cancion_duracion_horas = (SELECT duracion_horas FROM Cancion WHERE nombre = NEW.cancion_nombre AND album_nombre = NEW.album_nombre);
             cancion_duracion_minutos = (SELECT duracion_minutos FROM Cancion WHERE nombre = NEW.cancion_nombre AND album_nombre = NEW.album_nombre);
-            cancion_duracion_segundos = (SELECT duracion_sec FROM Cancion WHERE nombre = NEW.cancion_nombre AND album_nombre = NEW.album_nombre);
+            cancion_duracion_segundos = (SELECT duracion_segundos FROM Cancion WHERE nombre = NEW.cancion_nombre AND album_nombre = NEW.album_nombre);
             cancion_duracion_total = (cancion_duracion_horas || ' hours')::INTERVAL + (cancion_duracion_minutos || ' minutes')::INTERVAL + (cancion_duracion_segundos || ' seconds')::INTERVAL;
             UPDATE Lista_reproduccion SET duracion = duracion + cancion_duracion_total WHERE nombre = NEW.lista_reproduccion_nombre AND usuario_correo_electronico = NEW.usuario_correo_electronico;
         ELSIF (TG_OP = 'DELETE') THEN
             cancion_duracion_horas = (SELECT duracion_horas FROM Cancion WHERE nombre = OLD.cancion_nombre AND album_nombre = OLD.album_nombre);
             cancion_duracion_minutos = (SELECT duracion_minutos FROM Cancion WHERE nombre = OLD.cancion_nombre AND album_nombre = OLD.album_nombre);
-            cancion_duracion_segundos = (SELECT duracion_sec FROM Cancion WHERE nombre = OLD.cancion_nombre AND album_nombre = OLD.album_nombre);
+            cancion_duracion_segundos = (SELECT duracion_segundos FROM Cancion WHERE nombre = OLD.cancion_nombre AND album_nombre = OLD.album_nombre);
             cancion_duracion_total = (cancion_duracion_horas || ' hours')::INTERVAL + (cancion_duracion_minutos || ' minutes')::INTERVAL + (cancion_duracion_segundos || ' seconds')::INTERVAL;
             UPDATE Lista_reproduccion SET duracion = duracion - cancion_duracion_total WHERE nombre = OLD.lista_reproduccion_nombre AND usuario_correo_electronico = OLD.usuario_correo_electronico;
         END IF;
@@ -331,7 +331,27 @@ DELETE FROM Usuario;
 DELETE FROM Artista;
 */
 
+SET enable_mergejoin TO OFF;
+SET enable_hashjoin TO OFF;
+SET enable_bitmapscan TO OFF;
+SET enable_sort TO OFF;
+
+SET enable_mergejoin TO ON;
+SET enable_hashjoin TO ON;
+SET enable_bitmapscan TO ON;
+SET enable_sort TO ON;
+
 --Pregunta 1
+
+-- INDEX idx_suscripcion_fecha_inicio ON Suscripcion USING BTREE(fecha_inicio);
+--CREATE INDEX idx_suscripcion_fecha_fin ON Suscripcion USING BTREE(fecha_fin);
+CREATE INDEX idx_cancion_nombre ON Cancion USING HASH(nombre); --SE USO SOLO ESTO
+
+--DROP INDEX idx_suscripcion_fecha_inicio;
+--DROP INDEX idx_suscripcion_fecha_fin;
+DROP INDEX idx_cancion_nombre;
+
+
 SELECT genero_nombre, COUNT(genero_nombre) AS cantidad
 FROM
     ((Usuario
@@ -350,14 +370,14 @@ LIMIT 3;
 
 --Pregunta 2
 --Version sin optimizar
-EXPLAIN
+/*
 SELECT edad, conteo, tipo_suscripcion_tipo from Suscripcion JOIN
 (SELECT correo_electronico, EXTRACT(YEAR FROM AGE(CURRENT_DATE,Usuario.fecha_nacimiento)) AS edad, conteo FROM Usuario JOIN
 (SELECT usuario_correo_electronico, artista_correo_electronico, conteo
 FROM (
     SELECT usuario_correo_electronico, artista_correo_electronico, COUNT(artista_correo_electronico) AS conteo
     FROM (
-        SELECT usuario_correo_electronico, lista_reproduccion_nombre, cancion_nombre, Lista.artista_correo_electronico
+        SELECT usuario_correo_electronico, Lista.artista_correo_electronico
         FROM Lista
         JOIN (
             SELECT nombre, album_nombre, artista_correo_electronico
@@ -374,9 +394,9 @@ FROM (
 WHERE conteo = (
     SELECT MAX(conteo)
     FROM (
-        SELECT usuario_correo_electronico, COUNT(artista_correo_electronico) AS conteo
+        SELECT COUNT(artista_correo_electronico) AS conteo
         FROM (
-            SELECT usuario_correo_electronico, lista_reproduccion_nombre, cancion_nombre, Lista.artista_correo_electronico
+            SELECT usuario_correo_electronico, Lista.artista_correo_electronico
             FROM Lista
             JOIN (
                 SELECT nombre, album_nombre, artista_correo_electronico
@@ -391,12 +411,17 @@ WHERE conteo = (
         GROUP BY usuario_correo_electronico, artista_correo_electronico
     ) AS d
 )) AS e ON Usuario.correo_electronico = e.usuario_correo_electronico) AS f ON f.correo_electronico = Suscripcion.usuario_correo_electronico;
+*/
 
 --VERSION OPTIMIZADA
+
+CREATE INDEX idx_artista_numero_oyentes ON Artista USING BTREE(numero_oyentes);
+DROP INDEX idx_artista_numero_oyentes;
+
 WITH artistas_max_oyentes AS (
     SELECT correo_electronico
     FROM Artista
-    WHERE numero_oyentes = (SELECT MAX(numero_oyentes) FROM Artista)
+    WHERE numero_oyentes = (SELECT MAX(numero_oyentes) FROM Artista WHERE Artista.is_verificado = TRUE)
 ),
 canciones_artistas_max_oyentes AS (
     SELECT nombre, album_nombre, artista_correo_electronico
@@ -429,6 +454,9 @@ JOIN usuarios_conteo_maximo ON usuarios_conteo_maximo.correo_electronico = Suscr
 
 
 --Pregunta 3
+
+CREATE INDEX idx_cancion_fecha_lanzamiento ON Cancion USING BTREE(fecha_lanzamiento);
+DROP INDEX idx_cancion_fecha_lanzamiento;
 
 SELECT s.tipo_suscripcion_tipo, COUNT(*) AS cantidad
 FROM Suscripcion s
