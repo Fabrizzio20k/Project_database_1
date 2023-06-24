@@ -41,6 +41,7 @@ usuarios_conteo_maximo AS (
     JOIN conteo_listas_artistas_max_oyentes ON Usuario.correo_electronico = conteo_listas_artistas_max_oyentes.usuario_correo_electronico
     JOIN max_conteo_listas_artistas_max_oyentes ON conteo_listas_artistas_max_oyentes.conteo = max_conteo_listas_artistas_max_oyentes.max_conteo
 )
-SELECT edad, conteo, tipo_suscripcion_tipo
+SELECT edad, sum(conteo) as conteo_total, tipo_suscripcion_tipo
 FROM Suscripcion
-JOIN usuarios_conteo_maximo ON usuarios_conteo_maximo.correo_electronico = Suscripcion.usuario_correo_electronico;
+JOIN usuarios_conteo_maximo ON usuarios_conteo_maximo.correo_electronico = Suscripcion.usuario_correo_electronico
+GROUP BY edad, tipo_suscripcion_tipo;
