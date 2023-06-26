@@ -112,8 +112,8 @@ ALTER TABLE Album ADD CONSTRAINT FK_Album_artista FOREIGN KEY (artista_correo_el
 ALTER TABLE Cancion ADD CONSTRAINT PK_Cancion PRIMARY KEY (nombre, album_nombre);
 ALTER TABLE Cancion ADD CONSTRAINT FK_Cancion_album FOREIGN KEY (album_nombre, artista_correo_electronico) REFERENCES Album(nombre, artista_correo_electronico);
 ALTER TABLE Cancion ADD CONSTRAINT FK_Cancion_genero FOREIGN KEY (genero_nombre) REFERENCES Genero(nombre);
-ALTER TABLE Cancion ADD CONSTRAINT CK_Cancion_duracion CHECK (duracion_sec < 60 AND duracion_minutos < 60 AND duracion_horas < 24);
-ALTER TABLE Cancion ADD CONSTRAINT CK_Cancion_min_duracion CHECK (duracion_sec = 0 AND (duracion_minutos > 0 OR duracion_horas > 0) OR (duracion_sec > 0 AND duracion_minutos >= 0 AND duracion_horas >= 0));
+ALTER TABLE Cancion ADD CONSTRAINT CK_Cancion_duracion CHECK (duracion_segundos < 60 AND duracion_minutos < 60 AND duracion_horas < 24);
+ALTER TABLE Cancion ADD CONSTRAINT CK_Cancion_min_duracion CHECK (duracion_segundos = 0 AND (duracion_minutos > 0 OR duracion_horas > 0) OR (duracion_segundos > 0 AND duracion_minutos >= 0 AND duracion_horas >= 0));
 
 --Lista_reproduccion
 ALTER TABLE Lista_reproduccion ADD CONSTRAINT PK_Lista_reproduccion PRIMARY KEY (nombre, usuario_correo_electronico);
